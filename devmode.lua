@@ -1,8 +1,5 @@
---[[ debug.lua -- Debug utilities
-
-+ Enables `strict' mode: forbid any R/W to _G.
-+ Adds a __trace__ table for debugging. Usage:
-
+--[[ debug.lua -- Debugging utilities.
+Adds a __trace__ table for debugging. Usage of __trace__:
   __trace__("fmt", ...)             Print a message.
   __trace__(2, "fmt", ...)          Print a message at a given level.
   __trace__[func] = true            Toggle tracing for a specific function.
@@ -12,7 +9,6 @@
 
 local format, sub, getinfo, stderr = string.format, string.sub, debug.getinfo, io.stderr
 
---local function SGR(a, s) return format("\027[%sm%s\27[0m", a, s) end
 local function getcaller(lvl)
     local info = getinfo(1 + lvl, "lSf")
     return format(
@@ -34,8 +30,8 @@ _G.__trace__ = setmetatable({}, {
     end,
 })
 
--- Protect the global table.
+-- Forbid reads+writes to the global environment table.
 setmetatable(_G, {
-    __index = function(_, k) error("Accessed undeclared global: "..tostring(k), 2) end,
+    __index    = function(_, k) error("Accessed undeclared global: "..tostring(k), 2) end,
     __newindex = function(_, k) error("Polluted global environment: "..tostring(k), 2) end,
 })

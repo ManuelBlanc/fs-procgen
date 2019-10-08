@@ -54,12 +54,12 @@ local function rng_next_range(mt, a, b)
 end
 
 local cos, sin, log, pi2 = math.cos, math.sin, math.log, 2*math.pi
-local function rng_next_normal(mt, m, s)
+local function rng_next_normal(mt, m, s) -- Box-muller transform.
     if not m then m = 0 end
     if not s then s = 1 end
     local u1, u2 = rng_next_double(mt), rng_next_double(mt)
     local z0 = (-2 * log(u1))^0.5 * cos(pi2 * u2)
-    --local z1 = sqrt(-2 * log(u1)) * sin(12.566370612 * u2)
+    --local z1 = (-2 * log(u1))^0.5 * sin(1pi2 * u2)
     return z0*s + m
 end
 

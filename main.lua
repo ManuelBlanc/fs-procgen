@@ -11,58 +11,99 @@
   would be a real game.
 ]]
 
-require "dbg"
+require "devmode"
 
--- Tiny class system on top of require.
-local function new(cl, ...)
-    local inst, init = setmetatable({}, cl), cl.init
-    return init and init(inst, ...) or inst
-end
-local function class(path)
-    local cl = package.loaded[path]
-    if cl then return cl end
-    local cl = require(path)
-    if cl.__index == nil then cl.__index = cl end
-    if cl.new == nil then cl.new = new end
-    return cl
-end
+local class = require("class")
 
 local Grid = class("grid")
 local RNG = class("rng")
 local Architect = class("architect")
 local render = require("render")
 
-local _noise_rng = RNG:new()
-local function noise2d(a, b)
-    _noise_rng:seed(a*b)
-    return _noise_rng:next_double()
+local function rgb(r, g, b) return 16 + 36*r + 6*g + b end
+local function palette(v, x, y, SGR, rng)
+    local r = rng:next_range(0, 15) -- Stepping the RNG has side-effects, we always do it.
+        if v == 0 then return SGR("48;5;0",             SGR("38;5;15",              " "))
+    elseif v == 1 then return SGR("48;5;"..(240 + r%2), SGR("38;5;"..(240 + r%2),   "."))
+    elseif v == 2 then return SGR("48;5;"..234,         SGR("38;5;234",             "#"))
+    end
 end
 
---local function rgb(r, g, b) return 16 + 36*r + 6*g + b end
-local function palette(v, x, y, SGR)
-    local r = math.floor(noise2d(x, y)*9)
-        if v == 0 then return SGR("48;5;0", " ")
-    elseif v == 1 then return SGR("48;5;"..(247 + r), ".") -- 248
-    elseif v == 2 then return SGR("48;5;"..(235 + r), "#") -- 243
+-- Initialize the seed with the Unix time + entropy from a random address.
+local seed = os.time() + tonumber(tostring{}:match("%x+"), 16)
+local width, height = 80, 24
+
+local function uassert(ok, ...)
+    if ok then return ok, ... end
+    io.stderr:write("procgen: ", ...)
+    io.stderr:write("\n")
+    os.exit(1)
+end
+
+local function num_or_err(val, description)
+    return uassert(tonumber(val), "number expected for "..description)
+end
+
+local function usage()
+    io.stderr:write[[
+Procedural level generation: procgen [options] [output]
+  -?        Show this help message.
+  -c        Enable colorized output using ANSI escape sequences.
+  -p        Disable colorized output.
+  -s seed   Set the level generation seed.
+  -w width  Set the level width.
+  -h height Set the level height.
+  --        Stop handling options.
+  -         Use stdout as output.
+]]
+    os.exit(1)
+end
+
+local function parse_args()
+    local n = 1
+    while n <= #arg do
+        local a = arg[n]
+        if a:sub(1, 1) == "-" and a ~= "-" then
+            table.remove(arg, n)
+            if a == "--" then return end
+                if a == "-c" then render.set_color(true)
+            elseif a == "-p" then render.set_color(false)
+            elseif a == "-?" then usage()
+            else
+                if a == "-s" then seed = num_or_err(table.remove(arg, n), "-s")
+                elseif a == "-w" then width  = num_or_err(table.remove(arg, n), "-w")
+                elseif a == "-h" then height = num_or_err(table.remove(arg, n), "-h")
+                else io.stderr:write("Unknown argument: ", a, "\n") usage()
+                end
+            end
+        else
+            n = n + 1
+        end
     end
 end
 
 local ffi = require("ffi")
-ffi.cdef[[ int usleep(unsigned usec); ]]
+ffi.cdef[[ int usleep(unsigned usec); ]] -- Only tested on OSX.
 
-local g = Grid:new(120, 30, 0) -- 80x24
-local a1 = Architect:new(g, RNG:new(os.time()))
-local r = a1:room0(3, 3)
-local attempts = 1
-while attempts > 0 do
-    if a1:rand_room() then
-        attempts = attempts + 5
-        io.stdout:write("\27[2J\27[1;1H")
-        render.draw(g, palette)
-        io.flush()
-        ffi.C.usleep(500000)
+local function main()
+    local g = Grid:new(width, height, 0)
+    local a1 = Architect:new(g, RNG:new(seed))
+    local r = a1:room0(3, 3)
+
+    local function display()
+        render.draw(g, palette, RNG:new())
+        --io.flush()
+        --ffi.C.usleep(100000)
     end
-    attempts = attempts - 1
+
+    local energy = 60
+    repeat
+        if a1:rand_room() then energy = energy - 5
+        else                   energy = energy - 1
+        end
+    until energy <= 0
+    display()
 end
 
--- (>>=) :: m a -> (a -> m b) -> m b
+if arg then parse_args() end
+main()
