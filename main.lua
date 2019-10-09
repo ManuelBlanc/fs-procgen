@@ -32,21 +32,23 @@ end
 -- Initialize the seed with the Unix time + entropy from a random address.
 local seed = os.time() + tonumber(tostring{}:match("%x+"), 16)
 local width, height = 80, 24
+local out, color = io.stdout, nil
 
-local function uassert(ok, ...)
-    if ok then return ok, ... end
+local function die(...)
     io.stderr:write("procgen: ", ...)
     io.stderr:write("\n")
     os.exit(1)
 end
 
-local function num_or_err(val, description)
-    return uassert(tonumber(val), "number expected for "..description)
+local function num_or_err(val, opt)
+    local num = tonumber(val)
+    if num then return num end
+    die("Numeric argument expected for `-", opt, "'")
 end
 
 local function usage()
     io.stderr:write[[
-Procedural level generation: procgen [options] [output]
+Procedural level generation: procgen [options]
   -?        Show this help message.
   -c        Enable colorized output using ANSI escape sequences.
   -p        Disable colorized output.
@@ -54,26 +56,28 @@ Procedural level generation: procgen [options] [output]
   -w width  Set the level width.
   -h height Set the level height.
   --        Stop handling options.
-  -         Use stdout as output.
 ]]
     os.exit(1)
 end
 
 local function parse_args()
-    local n = 1
+    local n, remove = 1, table.remove
     while n <= #arg do
         local a = arg[n]
         if a:sub(1, 1) == "-" and a ~= "-" then
-            table.remove(arg, n)
+            remove(arg, n)
             if a == "--" then return end
-                if a == "-c" then render.set_color(true)
-            elseif a == "-p" then render.set_color(false)
-            elseif a == "-?" then usage()
-            else
-                if a == "-s" then seed = num_or_err(table.remove(arg, n), "-s")
-                elseif a == "-w" then width  = num_or_err(table.remove(arg, n), "-w")
-                elseif a == "-h" then height = num_or_err(table.remove(arg, n), "-h")
-                else io.stderr:write("Unknown argument: ", a, "\n") usage()
+            for i=2, #a do
+                local c = a:sub(i, i)
+                    if c == "c" then color = true
+                elseif c == "p" then color = false
+                elseif c == "?" then usage()
+                else
+                        if c == "s" then seed   = num_or_err(remove(arg, n), "s")
+                    elseif c == "w" then width  = num_or_err(remove(arg, n), "w")
+                    elseif c == "h" then height = num_or_err(remove(arg, n), "h")
+                    else die("Unknown option: `-", c, "'")
+                    end
                 end
             end
         else
@@ -91,7 +95,7 @@ local function main()
     local r = a1:room0(3, 3)
 
     local function display()
-        render.draw(g, palette, RNG:new())
+        render.draw(g, palette, RNG:new(), out, color)
         --io.flush()
         --ffi.C.usleep(100000)
     end

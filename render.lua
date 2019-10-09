@@ -1,22 +1,26 @@
 --[[ render.lua -- Draw dungeons as ASCII, optionally using term colors. ]]
 
 local ffi = require("ffi")
-ffi.cdef[[ int isatty(int fd); ]]
+ffi.cdef[[
+int fileno(void *fp);
+int isatty(int fd);
+]]
 
 local function SGR_color(a, s) return string.format("\27[%sm%s\27[0m", a, s) end
 local function SGR_plain(_, s) return s end
-local SGR
 
-local function render_set_color(bool)
-    if bool then SGR = SGR_color else SGR = SGR_plain end
-end
-
-render_set_color(ffi.C.isatty(1) == 1)
-
+-- Buffering lines is a bit faster than outputting individual characters.
 local _buf, _n = {}
-local function render_draw(grid, palette, ctx, out)
+local function render_draw(grid, palette, ctx, out, color)
     out = out or io.stdout
-    if SGR == SGR_color then out:write("\27[2J\27[1;1H") end
+    local SGR = SGR_plain
+    if color == nil then
+        color = ffi.C.isatty(ffi.C.fileno(out)) == 1
+    end
+    if color then
+        SGR = SGR_color
+        out:write("\27[2J\27[1;1H")
+    end
     for y=0, grid.h-1 do
         _n = 1
         for x=0, grid.w-1 do
@@ -29,5 +33,4 @@ end
 
 return {
     draw = render_draw,
-    set_color = render_set_color,
 }
