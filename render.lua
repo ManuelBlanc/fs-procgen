@@ -1,10 +1,6 @@
 --[[ render.lua -- Draw dungeons as ASCII, optionally using term colors. ]]
 
-local ffi = require("ffi")
-ffi.cdef[[
-int fileno(void *fp);
-int isatty(int fd);
-]]
+local isatty = require("platform").isatty
 
 local function SGR_color(a, s) return string.format("\27[%sm%s\27[0m", a, s) end
 local function SGR_plain(_, s) return s end
@@ -15,7 +11,7 @@ local function render_draw(grid, palette, ctx, out, color)
     out = out or io.stdout
     local SGR = SGR_plain
     if color == nil then
-        color = ffi.C.isatty(ffi.C.fileno(out)) == 1
+        color = isatty(out)
     end
     if color then
         SGR = SGR_color

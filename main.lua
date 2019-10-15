@@ -86,9 +86,6 @@ local function parse_args()
     end
 end
 
-local ffi = require("ffi")
-ffi.cdef[[ int usleep(unsigned usec); ]] -- Only tested on OSX.
-
 local function main()
     local g = Grid:new(width, height, 0)
     local a1 = Architect:new(g, RNG:new(seed))
