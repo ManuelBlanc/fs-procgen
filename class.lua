@@ -26,7 +26,7 @@ local function class(path)
     if mt.__ctype then ffi.metatype(mt.__ctype, mt) end
     if mt.new == nil then
         if mt.__ctype then mt.new = new_ffi
-        else          then mt.new = new_lua
+        else               mt.new = new_lua
         end
     end
     return mt
