@@ -1,5 +1,5 @@
---[[ architect.lua -- Level generator. ]]
-
+-- Level generation module.
+-- Utilities to generate dungeon features (eg, corridors, rooms).
 
 -- Axis aligned bounding box
 local ffi = require("ffi")
@@ -10,17 +10,24 @@ ffi.metatype(AABB, {
         return string.format("AABB(%i, %i, %i, %i)", A.x0, A.y0, A.x1, A.y1)
     end,
 })
+
+--- Check if two AABB intersect.
 local function AABB_intersects(A, B)
     return A.x0 <= B.x1 and A.x1 >= B.x0 and A.y0 <= B.y1 and A.y1 >= B.y0
 end
+
+-- Check if an AABB contains another one AABB (or they are equal).
 local function AABB_contains(A, B)
     return A.x0 <= B.x0 and A.x1 >= B.x1 and A.y0 <= B.y0 and A.y1 >= B.y1
 end
+
+--- Retrieve the midpoint of an AABB.
 local floor = math.floor
 local function AABB_midpoint(A)
     return floor((A.x0 + A.x1)*0.5), floor((A.y0 + A.y1)*0.5)
 end
 
+--- Initialize an architect.
 local function arch_init(arch, grid, rng)
     arch.grid = grid
     arch.w, arch.h = grid.w, grid.h
@@ -28,6 +35,7 @@ local function arch_init(arch, grid, rng)
     arch.span = AABB(0, 0, grid.w-1, grid.h-1)
 end
 
+--- Test if a room doesn't overlap with any other and is in-bounds.
 local function arch_is_valid(arch, room)
     if not AABB_contains(arch.span, room) then return false end
     for i=1, #arch do
@@ -36,11 +44,13 @@ local function arch_is_valid(arch, room)
     return true
 end
 
+--- Places a wall at a given position if there's not floor there already.
 local function arch_wall_if_not_floor(arch, x, y)
     local grid = arch.grid
     if grid:get(x, y) ~= 1 then grid:set(x, y, 2) end
 end
 
+--- Carves a room in the grid. Does not block floor tiles.
 local function arch_carve(arch, room)
     local grid = arch.grid
     local x0, y0, x1, y1 = room.x0, room.y0, room.x1, room.y1
@@ -49,23 +59,25 @@ local function arch_carve(arch, room)
             grid:set(x, y, 1)
         end
     end
-    for x=x0, x1, x0<=x1 and 1 or -1 do
+    for x=x0, x1, x0<=x1 and 1 or -1 do -- Horizontal walls.
         arch_wall_if_not_floor(arch, x, y0)
         arch_wall_if_not_floor(arch, x, y1)
     end
-    for y=y0, y1, y0<=y1 and 1 or -1 do
+    for y=y0, y1, y0<=y1 and 1 or -1 do -- Vertical walls.
         arch_wall_if_not_floor(arch, x0, y)
         arch_wall_if_not_floor(arch, x1, y)
     end
     arch[#arch+1] = room
 end
 
+--- Carves a X-Y step line.
 local function arch_step_line(arch, x0, y0, x1, y1)
     local grid = arch.grid
     for x=x0, x1, x0<=x1 and 1 or -1 do grid:set(x, y0, 1) end
     for y=y0, y1, y0<=y1 and 1 or -1 do grid:set(x1, y, 1) end
 end
 
+--- Carves a corridor between two points, with walls around.
 local function arch_corridor(arch, x0, y0, x1, y1)
     local grid = arch.grid
     for x=x0, x1, x0<=x1 and 1 or -1 do -- Horizontal.
@@ -83,22 +95,24 @@ local function arch_corridor(arch, x0, y0, x1, y1)
     end
 end
 
+--- Place an unconnected room room in the center of the dungeon.
 local function arch_room0(arch, hW, hH)
     local cx, cy = math.floor(arch.w/2), math.floor(arch.h/2)
     return arch_carve(arch, AABB(cx-hW, cy-hH, cx+hW, cy+hH))
 end
 
+--- Carves a new child room with the given size and padding.
 local function arch_grow(arch, room, w, h, pad)
     local rng, leaf = arch.rng, AABB()
     if not pad then pad = 1 end
     for tries=1, 20 do
-        local d = rng:next_range(4)
+        local dir = rng:next_range(4)
         local x0 = rng:next_range(room.x0-w, room.x1)
         local y0 = rng:next_range(room.y0-h, room.y1)
-            if d == 1 then y0 = room.y0 - pad - h   -- Top
-        elseif d == 2 then x0 = room.x1 + pad       -- Right
-        elseif d == 3 then y0 = room.y1 + pad       -- Bottom
-        else--[[d== 4 ]]   x0 = room.x0 - pad - w   -- Left
+            if dir == 1 then y0 = room.y0 - pad - h   -- Top
+        elseif dir == 2 then x0 = room.x1 + pad       -- Right
+        elseif dir == 3 then y0 = room.y1 + pad       -- Bottom
+        else--[[dir== 4 ]]   x0 = room.x0 - pad - w   -- Left
         end
         leaf.x0, leaf.y0, leaf.x1, leaf.y1 = x0, y0, x0+w, y0+h
         if arch_is_valid(arch, leaf) then
@@ -115,6 +129,7 @@ local function arch_grow(arch, room, w, h, pad)
     end
 end
 
+--- Place a new random room with some pre-set parameters.
 local ceil, max = math.ceil, math.max
 local function arch_rand_room(arch)
     local rng, n = arch.rng, #arch
@@ -126,6 +141,7 @@ local function arch_rand_room(arch)
     return arch_grow(arch, room, w, h, p)
 end
 
+--- Carve a line between two points, using Bresenham's algorithm.
 local floor = math.floor
 local function arch_line(arch, x0, y0, x1, y1)
     local grid = arch.grid

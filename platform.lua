@@ -1,4 +1,4 @@
--- Platform specific FFI bindings. Reads the OS from jit.os.
+-- Platform specific FFI bindings.
 
 assert(jit, "LuaJIT is required")
 
@@ -7,7 +7,7 @@ local isatty, sleep
 
 if jit.os == "Windows" then
 
-    -- https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleep?redirectedfrom=MSDN
+    -- https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleep
     ffi.cdef[[ void Sleep(unsigned int dwMilliseconds); ]]
 
     isatty = function() return false end

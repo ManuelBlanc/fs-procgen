@@ -1,14 +1,15 @@
---[[ debug.lua -- Debugging utilities.
-Adds a __trace__ table for debugging. Usage of __trace__:
-  __trace__("fmt", ...)             Print a message.
-  __trace__(2, "fmt", ...)          Print a message at a given level.
-  __trace__[func] = true            Toggle tracing for a specific function.
-  __trace__["path.lua"] = true      Toggle tracing for all functions in a file/module.
-  __trace__["*"] = true             Toggle tracing for ALL functions.
-]]
+-- Debugging utilities.
+--
+-- Usage of __trace__:
+--  __trace__("fmt", ...)           Print a message.
+--  __trace__(2, "fmt", ...)        Print a message at a given level.
+--  __trace__[func] = true          Toggle tracing for a specific function.
+--  __trace__["path.lua"] = true    Toggle tracing for all functions in a file/module.
+--  __trace__["*"] = true           Toggle tracing for ALL functions.
 
 local format, sub, getinfo, stderr = string.format, string.sub, debug.getinfo, io.stderr
 
+--- Retrieve a tag + info table of the function at a given stack level.
 local function getcaller(lvl)
     local info = getinfo(1 + lvl, "lSf")
     return format(
@@ -17,7 +18,8 @@ local function getcaller(lvl)
     ), info
 end
 
-_G.__trace__ = setmetatable({}, {
+-- Trace definition.
+rawset(_G, "__trace__", setmetatable({}, {
     __call = function(self, lvl, ...)
         if type(lvl) == "string" then return __trace__(1, lvl, ...) end
         local locstr, info = getcaller(1 + lvl)
@@ -28,7 +30,7 @@ _G.__trace__ = setmetatable({}, {
         elseif not self[info.func] then return end
         return stderr:write(format("%s: %s\n", locstr, format(...)))
     end,
-})
+}))
 
 -- Forbid reads+writes to the global environment table.
 setmetatable(_G, {
